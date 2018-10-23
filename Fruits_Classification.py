@@ -221,13 +221,13 @@ def initialize_parameters():
     parameters = {}
     
     parameters["W1"] = tf.get_variable("W1", shape=(5,5,3,16), initializer=tf.contrib.layers.xavier_initializer(seed=0))
-    parameters["b1"] = tf.zeros(name="b1", dtype=tf.float32, shape=[16])
+    parameters["b1"] = tf.get_variable("b1", shape=[16], initializer=tf.zeros_initializer())
     parameters["W2"] = tf.get_variable("W2", shape=(5,5,16,32), initializer=tf.contrib.layers.xavier_initializer(seed=0))
-    parameters["b2"] = tf.zeros(name="b2", dtype=tf.float32,shape=[32])
+    parameters["b2"] = tf.get_variable("b2", shape=[32], initializer=tf.zeros_initializer())
     parameters["W3"] = tf.get_variable("W3", shape=(5,5,32,64), initializer=tf.contrib.layers.xavier_initializer(seed=0))
-    parameters["b3"] = tf.zeros(name="b3",dtype=tf.float32, shape=[64])
+    parameters["b3"] = tf.get_variable("b3", shape=[64], initializer=tf.zeros_initializer())
     parameters["W4"] = tf.get_variable("W4", shape=(5,5,64,128), initializer=tf.contrib.layers.xavier_initializer(seed=0))
-    parameters["b4"] = tf.zeros(name="b4", dtype=tf.float32,shape=[128])
+    parameters["b4"] = tf.get_variable("b4", shape=[128], initializer=tf.zeros_initializer())
 
     return parameters
    
@@ -344,7 +344,7 @@ def get_mini_batches(X_train, y_train, mini_batch_size):
 
 # Create the model
 
-def model(X_train, y_train, X_test, y_test,num_epochs=1000, mini_batch_size=64, learning_rate=0.001):
+def model(X_train, y_train, X_test, y_test,num_epochs=1000, mini_batch_size=32, learning_rate=0.0001):
     
      # to be able to rerun the model without overwriting tf variables
     ops.reset_default_graph()                        
@@ -355,7 +355,7 @@ def model(X_train, y_train, X_test, y_test,num_epochs=1000, mini_batch_size=64, 
     m_test = X_test.shape[0]
     overall_cost = []
     overall_accuracy = []
-    overall_test_accuracy = []
+    overall_tf_accuracy = []
     
     # Initialize parameters
     parameters = initialize_parameters() 
@@ -373,11 +373,13 @@ def model(X_train, y_train, X_test, y_test,num_epochs=1000, mini_batch_size=64, 
     # Define an optimizer for training
     train = optimizer(learning_rate, cost)
     
-    init = tf.global_variables_initializer()
+    init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer(), tf.tables_initializer())
     
     correct_pred = tf.equal(tf.argmax(Z, 1), tf.argmax(y_, 1))
     
     accuracy = tf.reduce_mean(tf.cast(correct_pred, "float"))
+
+    #tf_accuracy = tf.metrics.accuracy(labels=y_, predictions=Z)
             
     # Create a tensorflow session
     with tf.Session() as sess:
@@ -394,7 +396,7 @@ def model(X_train, y_train, X_test, y_test,num_epochs=1000, mini_batch_size=64, 
             batch_counter = 0 
             batch_cost = []
             batch_accuracy = []
-            test_accuracy = []
+            batch_tf_accuracy = []
             random_idx = np.random.permutation(m_test)
             
             mini_batches_input_list = get_mini_batches(X_train, y_train, mini_batch_size)
@@ -405,12 +407,12 @@ def model(X_train, y_train, X_test, y_test,num_epochs=1000, mini_batch_size=64, 
                 
                 _, cur_cost = sess.run(train, feed_dict = {X_:mini_batch_X, y_:mini_batch_y}), sess.run(cost, feed_dict = {X_:mini_batch_X, y_:mini_batch_y})
                 cur_accuracy = sess.run(accuracy, feed_dict = {X_:mini_batch_X, y_:mini_batch_y})
-                cur_test_accuracy = 0.5#sess.run(accuracy, feed_dict = {X_:X_test[random_idx][:5], y_:y_test[random_idx][:5]})
+                #cur_tf_accuracy = sess.run(tf_accuracy, feed_dict = {X_:mini_batch_X, y_:mini_batch_y})
 
                 
                 batch_cost.append(cur_cost)
                 batch_accuracy.append(cur_accuracy)
-                test_accuracy.append(cur_test_accuracy)
+                #batch_tf_accuracy.append(cur_tf_accuracy)
                 
                 
                 batch_counter += 1
@@ -418,31 +420,37 @@ def model(X_train, y_train, X_test, y_test,num_epochs=1000, mini_batch_size=64, 
             
             overall_cost.append(np.mean(batch_cost))
             overall_accuracy.append(np.mean(batch_accuracy))
-            overall_test_accuracy.append(np.mean(test_accuracy))
+            #overall_tf_accuracy.append(np.mean(batch_tf_accuracy))
 
-            if i % 100 == 0:
+            if i % 2 == 0:
                 print("Cost at iteration %d is %f" % (i, overall_cost[-1]))
                 print("Accuracy at iteration %d is %f" % (i, overall_accuracy[-1]))
-                print("Test Accuracy at iteration %d is %f" % (i, overall_test_accuracy[-1]))
+                #print("Test Accuracy at iteration %d is %f" % (i, overall_tf_accuracy[-1]))
                 print("Saving a checkpoint here.")
                 saver.save(sess, os.getcwd() + "/fruit_train", global_step=i)
 
             print("Time taken for epoch %d: %f"% (i, time.time() - start))
+
+        
+        print("Final Cost is %f" % overall_cost[-1])
+        print("Final Accuracy is %f" % overall_accuracy[-1])
+        saver.save(sess, os.getcwd() + "/fruit_train-final")
                 
         
     
-    return overall_cost, overall_accuracy,overall_test_accuracy, parameters
+    return overall_cost, overall_accuracy,parameters#, overall_tf_accuracy
     
     
 
 
 # In[152]:
 
-overall_cost, overall_accuracy, overall_test_accuracy, parameters = model(training_data_norm, training_labels_one_hot,test_data_norm, test_labels_one_hot, num_epochs=1000)
+#overall_cost, overall_accuracy, parameters = model(training_data_norm, training_labels_one_hot, \
+														#test_data_norm, test_labels_one_hot, num_epochs=2)
 
 # In[128]:
 
-np.save("cost_accuracy.npy", [overall_cost, overall_accuracy, overall_test_accuracy])
+#np.save("cost_accuracy.npy", [overall_cost, overall_accuracy])
 
 
 # In[129]:
@@ -452,19 +460,25 @@ np.save("cost_accuracy.npy", [overall_cost, overall_accuracy, overall_test_accur
 
 # In[142]:
 
-'''with tf.Session() as sess:
+with tf.Session() as sess:
     #saver = tf.train.Saver()
-    saver = tf.train.import_meta_graph('fruit_train-40.meta')
-    saver.restore(sess, tf.train.latest_checkpoint("."))
 
-        
+
+    saver = tf.train.import_meta_graph('fruit_train-final.meta')
+    saver.restore(sess, tf.train.latest_checkpoint("./"))
+
     parameters = {}
     parameters["W1"] = tf.train.load_variable(tf.train.latest_checkpoint("."), "W1")
+    parameters["b1"] = tf.train.load_variable(tf.train.latest_checkpoint("."), "b1")    
     parameters["W2"] = tf.train.load_variable(tf.train.latest_checkpoint("."), "W2")
+    parameters["b2"] = tf.train.load_variable(tf.train.latest_checkpoint("."), "b2")
     parameters["W3"] = tf.train.load_variable(tf.train.latest_checkpoint("."), "W3")
+    parameters["b3"] = tf.train.load_variable(tf.train.latest_checkpoint("."), "b3")
     parameters["W4"] = tf.train.load_variable(tf.train.latest_checkpoint("."), "W4")
+    parameters["b4"] = tf.train.load_variable(tf.train.latest_checkpoint("."), "b4")
     
-
+    print(sess.run("W1:0"))
+    input()
 
     X_ = tf.placeholder(shape=[None, 100, 100, 3], dtype=tf.float32)
     y_ = tf.placeholder(shape=[None, 81], dtype=tf.float32)
@@ -478,14 +492,14 @@ np.save("cost_accuracy.npy", [overall_cost, overall_accuracy, overall_test_accur
     sess.run(init)
 
     #train_accuracy = sess.run(accuracy, {X_: training_data_norm, y_: training_labels_one_hot})
-    train_accuracy = sess.run(accuracy, {X_: training_data_norm[:50], y_: training_labels_one_hot[:50]})
-    argZ = sess.run(tf.argmax(Z, 1), {X_: training_data_norm[:50], y_: training_labels_one_hot[:50]})
+    train_accuracy = sess.run(accuracy, {X_: training_data_norm[:5], y_: training_labels_one_hot[:5]})
+    test_accuracy = sess.run(accuracy, {X_: test_data_norm[:5], y_: test_labels_one_hot[:5]})
     #argA = sess.run(tf.argmax(tf.nn.softmax(Z), 1), {X_: test_data_norm, y_: test_labels_one_hot})
     #argY = sess.run(tf.argmax(y_, 1), {X_: test_data_norm, y_: test_labels_one_hot})
 
     print(train_accuracy)
-    print(argZ)
-    print(training_labels_one_hot[:50])'''
+    print(test_accuracy)
+    
 
 
 print("DONE")
