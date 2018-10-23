@@ -177,8 +177,8 @@ test_labels_one_hot = np.eye(num_classes)[test_labels.reshape(-1)]
 # In[105]:
 
 # Normalize the input
-training_data_norm = training_data/255.0
-test_data_norm = test_data/255.0
+training_data_norm = training_data#/255.0
+test_data_norm = test_data#/255.0
 
 print("Shape of normalized training data is {}".format(training_data_norm.shape)) 
 print("Shape of normalized test data is {}".format(test_data_norm.shape)) 
@@ -221,10 +221,14 @@ def initialize_parameters():
     parameters = {}
     
     parameters["W1"] = tf.get_variable("W1", shape=(5,5,3,16), initializer=tf.contrib.layers.xavier_initializer(seed=0))
+    parameters["b1"] = tf.zeros(name="b1", dtype=tf.float32, shape=[16])
     parameters["W2"] = tf.get_variable("W2", shape=(5,5,16,32), initializer=tf.contrib.layers.xavier_initializer(seed=0))
+    parameters["b2"] = tf.zeros(name="b2", dtype=tf.float32,shape=[32])
     parameters["W3"] = tf.get_variable("W3", shape=(5,5,32,64), initializer=tf.contrib.layers.xavier_initializer(seed=0))
+    parameters["b3"] = tf.zeros(name="b3",dtype=tf.float32, shape=[64])
     parameters["W4"] = tf.get_variable("W4", shape=(5,5,64,128), initializer=tf.contrib.layers.xavier_initializer(seed=0))
-    
+    parameters["b4"] = tf.zeros(name="b4", dtype=tf.float32,shape=[128])
+
     return parameters
    
 
@@ -234,9 +238,10 @@ def initialize_parameters():
 # In[94]:
 
 # Define 1 convolution block 
-def conv2d_Block(X, W, s, padding='SAME'):
+def conv2d_Block(X, W, b, s, padding='SAME'):
     
     Z = tf.nn.conv2d(X, W, strides=[1,s,s,1], padding=padding)
+    Z = tf.nn.bias_add(Z, b)
     
     A = tf.nn.relu(Z)
     
@@ -263,16 +268,16 @@ def forward_pass(X, parameters):
     
     
     # Perform series of convolution operation
-    C1 = conv2d_Block(X, parameters["W1"], 1, "SAME")
+    C1 = conv2d_Block(X, parameters["W1"], parameters["b1"],1, "SAME")
     M1 = maxpool2d_Block(C1, 2, "SAME")
     
-    C2 = conv2d_Block(M1,  parameters["W2"], 1, "SAME")
+    C2 = conv2d_Block(M1,  parameters["W2"], parameters["b2"],1, "SAME")
     M2 = maxpool2d_Block(C2, 2,  "SAME")
     
-    C3 = conv2d_Block(M2,  parameters["W3"], 1, "SAME")
+    C3 = conv2d_Block(M2,  parameters["W3"], parameters["b3"],1, "SAME")
     M3 = maxpool2d_Block(C3, 2,  "SAME")
     
-    C4 = conv2d_Block(M3, parameters["W4"], 1, "SAME")
+    C4 = conv2d_Block(M3, parameters["W4"], parameters["b4"], 1, "SAME")
     M4 = maxpool2d_Block(C4, 2, "SAME")
     
     # Flatten 
@@ -299,7 +304,7 @@ def forward_pass(X, parameters):
 
 def compute_cost(logits, labels):
 
-    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels))
+    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=labels))
 
     return cost
 
@@ -321,6 +326,10 @@ def get_mini_batches(X_train, y_train, mini_batch_size):
     m = X_train.shape[0]
     batches = int(np.floor(m/mini_batch_size))
     print("Total number of batches: %d " % batches)
+    random_idx = np.random.permutation(m)
+
+    X_train = X_train[random_idx]
+    y_train = y_train[random_idx]
 
     for k in range(batches):
         mini_batches_input_list.append( (X_train[mini_batch_size*k : mini_batch_size*(k+1)], 
@@ -343,8 +352,10 @@ def model(X_train, y_train, X_test, y_test,num_epochs=1000, mini_batch_size=64, 
     # Extract information from the data
     m, nH, nW, nC = X_train.shape
     num_classes = y_train.shape[-1]
+    m_test = X_test.shape[0]
     overall_cost = []
     overall_accuracy = []
+    overall_test_accuracy = []
     
     # Initialize parameters
     parameters = initialize_parameters() 
@@ -383,7 +394,8 @@ def model(X_train, y_train, X_test, y_test,num_epochs=1000, mini_batch_size=64, 
             batch_counter = 0 
             batch_cost = []
             batch_accuracy = []
-            random_idx = np.random.permutation(m)
+            test_accuracy = []
+            random_idx = np.random.permutation(m_test)
             
             mini_batches_input_list = get_mini_batches(X_train, y_train, mini_batch_size)
             
@@ -393,10 +405,12 @@ def model(X_train, y_train, X_test, y_test,num_epochs=1000, mini_batch_size=64, 
                 
                 _, cur_cost = sess.run(train, feed_dict = {X_:mini_batch_X, y_:mini_batch_y}), sess.run(cost, feed_dict = {X_:mini_batch_X, y_:mini_batch_y})
                 cur_accuracy = sess.run(accuracy, feed_dict = {X_:mini_batch_X, y_:mini_batch_y})
+                cur_test_accuracy = 0.5#sess.run(accuracy, feed_dict = {X_:X_test[random_idx][:5], y_:y_test[random_idx][:5]})
 
                 
                 batch_cost.append(cur_cost)
                 batch_accuracy.append(cur_accuracy)
+                test_accuracy.append(cur_test_accuracy)
                 
                 
                 batch_counter += 1
@@ -404,10 +418,12 @@ def model(X_train, y_train, X_test, y_test,num_epochs=1000, mini_batch_size=64, 
             
             overall_cost.append(np.mean(batch_cost))
             overall_accuracy.append(np.mean(batch_accuracy))
+            overall_test_accuracy.append(np.mean(test_accuracy))
 
-            if i % 250 == 0:
+            if i % 100 == 0:
                 print("Cost at iteration %d is %f" % (i, overall_cost[-1]))
                 print("Accuracy at iteration %d is %f" % (i, overall_accuracy[-1]))
+                print("Test Accuracy at iteration %d is %f" % (i, overall_test_accuracy[-1]))
                 print("Saving a checkpoint here.")
                 saver.save(sess, os.getcwd() + "/fruit_train", global_step=i)
 
@@ -415,19 +431,18 @@ def model(X_train, y_train, X_test, y_test,num_epochs=1000, mini_batch_size=64, 
                 
         
     
-    return overall_cost, overall_accuracy, parameters
+    return overall_cost, overall_accuracy,overall_test_accuracy, parameters
     
     
 
 
 # In[152]:
 
-overall_cost, overall_accuracy, parameters = model(training_data_norm, training_labels_one_hot,test_data_norm, test_labels_one_hot, num_epochs=1)
-
+overall_cost, overall_accuracy, overall_test_accuracy, parameters = model(training_data_norm, training_labels_one_hot,test_data_norm, test_labels_one_hot, num_epochs=1000)
 
 # In[128]:
 
-np.save("cost_accuracy.npy", [overall_cost, overall_accuracy])
+np.save("cost_accuracy.npy", [overall_cost, overall_accuracy, overall_test_accuracy])
 
 
 # In[129]:
