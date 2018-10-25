@@ -43,6 +43,8 @@ class CNN_Model(object):
 	def __init__(self, config_file):
 
 		self.load = True
+		self.train = True
+		self.predict = True
 		self.save_models_dir = "models"
 		self.num_conv_layers = 2
 		self.conv_filter_shape = 3
@@ -77,6 +79,12 @@ class CNN_Model(object):
 
 		if "LOAD" in self.config["defaults"].keys():
 			self.load = bool(self.config["defaults"]["LOAD"])
+
+		if "TRAIN" in self.config["defaults"].keys():
+			self.train = bool(self.config["defaults"]["TRAIN"])
+
+		if "PREDICT" in self.config["defaults"].keys():
+			self.predict = bool(self.config["defaults"]["PREDICT"])
 
 		if "save_models_dir" in self.config["defaults"].keys():
 			self.save_models_dir = self.config["defaults"]["save_models_dir"]
@@ -216,21 +224,22 @@ class CNN_Model(object):
 
 	#--------------------------------------------------------------------------------------------------------------------------------------
 
-	def get_mini_batches(X_train, y_train):
+	def get_mini_batches(X_train, y_train, batches):
 
 	    mini_batches_input_list = []
 	    
-	    random_idx = np.random.permutation(self.m)
+	    m = X_train.shape[0]
+	    random_idx = np.random.permutation(m)
 
 	    X_train = X_train[random_idx]
 	    y_train = y_train[random_idx]
 
-	    for k in range(self.batches):
+	    for k in range(batches):
 	        mini_batches_input_list.append( (X_train[self.mini_batch_size * k : self.mini_batch_size * (k+1)], 
 	                                               y_train[self.mini_batch_size * k : self.mini_batch_size * (k+1)]))
 	    # Last chunk            
-	    mini_batches_input_list.append((X_train[self.batches * self.mini_batch_size : ], 
-	                                               y_train[self.batches * self.mini_batch_size : ]))
+	    mini_batches_input_list.append((X_train[batches * self.mini_batch_size : ], 
+	                                               y_train[batches * self.mini_batch_size : ]))
 
 	    return mini_batches_input_list
 
@@ -251,8 +260,8 @@ class CNN_Model(object):
 	    overall_accuracy = []
 	    overall_tf_accuracy = []
 
-	    self.batches = int(np.floor(self.m / self.mini_batch_size))
-	    print("Total number of batches: %d " % self.batches)
+	    batches = int(np.floor(self.m / self.mini_batch_size))
+	    print("Total number of batches: %d " % batches)
 	    
 	    # Initialize parameters
 	    self.initialize_parameters() 
@@ -295,7 +304,7 @@ class CNN_Model(object):
 	            batch_tf_accuracy = []
 	            random_idx = np.random.permutation(m_test)
 	            
-	            mini_batches_input_list = self.get_mini_batches(X_train, y_train)
+	            mini_batches_input_list = self.get_mini_batches(X_train, y_train, batches)
 	            
 	            for mini_batch in mini_batches_input_list:
 	                
@@ -339,26 +348,43 @@ class CNN_Model(object):
 	    return overall_cost, overall_accuracy,parameters
 
 
-
+	#--------------------------------------------------------------------------------------------------------------------------------------
 
 	def predict(self, data, labels):
 
 
+		print("Data shape: {}". format(data.shape))
+		print("Labels shape: {}". format(labels.shape))
+	    
 	    with tf.Session() as sess:
 	        
 	        X_ = tf.placeholder(shape=[None, self.nH, self.nW, self.nC], dtype=tf.float32)
 	        y_ = tf.placeholder(shape=[None, self.ny], dtype=tf.float32)
-	            
-	        Z = self.forward_pass(X_)
-	        correct_pred = tf.equal(tf.argmax(Z, 1), tf.argmax(y_, 1))
-	        accuracy = tf.reduce_mean(tf.cast(correct_pred, "float"))
 
-	        #sess = tf.Session()
+	         #sess = tf.Session()
 	        init = tf.global_variables_initializer()
 	        sess.run(init)
 
-	        train_accuracy = sess.run(accuracy, {X_: data, y_: labels})
-	        
-	        
+ 			batches = int(np.floor(data.shape[0] / self.mini_batch_size))
 
-	    return train_accuracy
+			overall_accuracy = []
+
+			Z = self.forward_pass(X_)
+
+	        correct_pred = tf.equal(tf.argmax(Z, 1), tf.argmax(y_, 1))
+	        
+	        accuracy = tf.reduce_mean(tf.cast(correct_pred, "float"))
+
+			mini_batches_input_list = self.get_mini_batches(data, labels, batches)
+
+			for mini_batch in mini_batches_input_list:	       
+
+	            mini_batch_X, mini_batch_y = mini_batch[0], mini_batch[1] 
+
+	            batch_accuracy = sess.run(accuracy, {X_: mini_batch_X, y_: mini_batch_y})	
+	              
+	            overall_accuracy.append(batch_accuracy)          
+	        
+        
+
+	    return np.mean(overall_accuracy)

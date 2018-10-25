@@ -18,6 +18,8 @@ if __name__ == "__main__":
     data_path = os.getcwd() + "/fruits-360/"
 
     LOAD_FLAG = model_obj.load
+    TRAIN_FLAG = model_obj.train
+    PREDICT_FLAG = model_obj.predict
 
     if not LOAD_FLAG:
 
@@ -72,7 +74,15 @@ if __name__ == "__main__":
 
 
 
+    if TRAIN_FLAG:
+        overall_cost, overall_accuracy, parameters = model_obj.model(training_data_norm, training_labels_one_hot, test_data_norm, test_labels_one_hot)
 
-    overall_cost, overall_accuracy, parameters = model_obj.model(training_data_norm, training_labels_one_hot, test_data_norm, test_labels_one_hot)
+
+    if PREDICT_FLAG:
+        accuracy_train = model_obj.predict(training_data_norm, training_labels_one_hot)
+        print("Accuracy for train dataset: {}".format(accuracy_train))
+
+        accuracy_test = model_obj.predict(test_data_norm, test_labels_one_hot)
+        print("Accuracy for test dataset: {}".format(accuracy_test))
 
 
