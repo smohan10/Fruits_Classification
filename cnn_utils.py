@@ -3,10 +3,84 @@ import shutil
 import numpy as np
 import h5py
 import cv2
+import logging
+import datetime as dt
+import time 
 
+# --------------------------------------------------------------------------------------------------------------------------    
 
+def get_current_date_string():
+    '''
+    Get the current date and timestamp as a string 
+    '''
+    current_date_object = dt.date.today()
+    month = str(current_date_object.month)
+    if len(month) != 2:
+        month = "0" + month
 
+    day = str(current_date_object.day)
+    if len(day) != 2:
+        day = "0" + day
 
+    current_date_str = str(current_date_object.year) + month + day + '_' + str(int(time.time()))
+        
+    return current_date_str
+
+# --------------------------------------------------------------------------------------------------------------------------    
+def printBanner(message):
+
+    header = '\n'
+    header += '===================================\n'
+    header += message + '\n'
+    header += '===================================\n'
+    print(header)
+
+    
+# --------------------------------------------------------------------------------------------------------------------------   
+
+def create_directory(path):
+    """ 
+    linux "mkdir -p" command but don't throw error if it already exists 
+    """
+    
+    if os.path.isdir(path): return
+    os.makedirs(path)
+    
+    
+# --------------------------------------------------------------------------------------------------------------------------    
+
+def create_logger_instance():  
+    '''
+    Create an instance of logging at file and console level.
+    '''
+    
+    # create logger with 'Training_Automation'
+    logger = logging.getLogger('Fruits Classification')
+    logger.setLevel(logging.DEBUG)
+    
+    create_directory('logs')
+    logging_name = 'logs/fruits_classification_logs_' + get_current_date_string() +  '.log'
+                
+    # create file handler which logs debug messages 
+    fh = logging.FileHandler(logging_name)
+    fh.setLevel(logging.DEBUG)
+    
+    # create console handler with a higher log level
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    
+    # create formatter and add it to the handlers
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    fh.setFormatter(formatter)
+    ch.setFormatter(formatter)
+    
+    # add the handlers to the logger
+    logger.addHandler(fh)
+    logger.addHandler(ch)   
+
+    return logger
+
+# --------------------------------------------------------------------------------------------------------------------------    
 def read(data_path, folder_type='train'):
 
     if folder_type.lower() == 'train':
@@ -62,11 +136,16 @@ def read(data_path, folder_type='train'):
     return data_tuple
 
 
+# --------------------------------------------------------------------------------------------------------------------------    
 
-def save_data_and_labels(training_data_tuple, test_data_tuple):
+def save_data_and_labels(training_data_tuple, test_data_tuple, data_dir):
 	
+	cur_dir = os.getcwd()
+	os.chdir(data_dir)
+
 	training_data, training_labels, num_classes, label_to_idx_dict_train,idx_to_label_dict_train = training_data_tuple
 	test_data, test_labels, num_classes, label_to_idx_dict_test, idx_to_label_dict_test = test_data_tuple
+
 
 	hf_train_data = h5py.File('training_data.h5', 'w')
 	hf_train_labels = h5py.File('training_labels.h5', 'w')
@@ -93,10 +172,15 @@ def save_data_and_labels(training_data_tuple, test_data_tuple):
 	hf_test_labels.close()
 
 	print("Data and labels saved")
+	os.chdir(cur_dir)
 
 
+# --------------------------------------------------------------------------------------------------------------------------    
 
-def load_data_and_labels():
+def load_data_and_labels(data_dir):
+
+	cur_dir = os.getcwd()
+	os.chdir(data_dir)
 
 	hf_train_data_read = h5py.File('training_data.h5', 'r')
 	hf_train_labels_read = h5py.File('training_labels.h5', 'r')
@@ -116,8 +200,10 @@ def load_data_and_labels():
 	training_data_tuple = (training_data, training_labels, num_classes, label_to_idx_dict_train,idx_to_label_dict_train)
 	test_data_tuple = (test_data, test_labels, num_classes, label_to_idx_dict_test, idx_to_label_dict_test)
 	
+	os.chdir(cur_dir)
 	return training_data_tuple, test_data_tuple
 
+# --------------------------------------------------------------------------------------------------------------------------    
 
 def convert_to_one_hot(labels, num_classes):
 

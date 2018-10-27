@@ -40,11 +40,12 @@ import json
 
 class CNN_Model(object):
 	
-	def __init__(self, config_file):
+	def __init__(self, config_file, logger):
 
 		self.load = True
 		self.train = True
 		self.predict = True
+		self.save_data_dir = "data"
 		self.save_models_dir = "models"
 		self.num_conv_layers = 2
 		self.conv_filter_shape = 3
@@ -56,6 +57,7 @@ class CNN_Model(object):
 		self.num_epochs = 20
 		self.mini_batch_size = 32
 		self.learning_rate = 0.001
+		self.logger = logger
 
 		self.read_config_file(config_file)
 
@@ -63,7 +65,7 @@ class CNN_Model(object):
 	#--------------------------------------------------------------------------------------------------------------------------------------
 	def read_config_file(self, config_file):
 		if not os.path.isfile(config_file):
-			print("ERROR reading config file")
+			self.logger.error("ERROR reading config file")
 			sys.exit(1)
 
 		with open(config_file) as json_config:
@@ -73,7 +75,7 @@ class CNN_Model(object):
 		keys_to_exist = ["defaults", "model_params"]
 		for key in self.config.keys():
 			if not key in keys_to_exist:
-				print("Config file error")
+				self.logger.error("Config file error")
 				sys.exit(1)
 
 
@@ -85,6 +87,9 @@ class CNN_Model(object):
 
 		if "PREDICT" in self.config["defaults"].keys():
 			self.predict = bool(self.config["defaults"]["PREDICT"])
+
+		if "save_data_dir" in self.config["defaults"].keys():
+			self.save_data_dir = self.config["defaults"]["save_data_dir"]
 
 		if "save_models_dir" in self.config["defaults"].keys():
 			self.save_models_dir = self.config["defaults"]["save_models_dir"]
@@ -99,7 +104,7 @@ class CNN_Model(object):
 			self.output_channels_list = self.config["model_params"]["output_channels_list"]
 
 		if len(self.output_channels_list) != self.num_conv_layers:
-			print("Ensure the no of conv layers and length of output channels list are the same")
+			self.logger.error("Ensure the no of conv layers and length of output channels list are the same")
 			sys.exit(1)
 
 		if "conv_strides" in self.config["model_params"].keys():
@@ -115,7 +120,7 @@ class CNN_Model(object):
 			self.units_fc_list = self.config["model_params"]["units_fc_list"]
 
 		if len(self.units_fc_list) != self.num_fc_layers:
-			print("Ensure the num_fc_layers and length of units_fc_list list are the same")
+			self.logger.error("Ensure the num_fc_layers and length of units_fc_list list are the same")
 			sys.exit(1)
 
 		if "num_epochs" in self.config["model_params"].keys():
@@ -145,8 +150,8 @@ class CNN_Model(object):
 
 	    	self.parameters[current_W] = tf.get_variable(current_W, shape=(f,f,nc_prev,nc), initializer=tf.contrib.layers.xavier_initializer(seed=0))
 	    	self.parameters[current_b] = tf.get_variable(current_b, shape=[nc], initializer=tf.zeros_initializer())
-	    	print("Shape of current weight at {} is {}".format(i+1, (f,f,nc_prev,nc)))
-	    	print("Shape of current bias at {} is {}".format(i+1, nc))
+	    	self.logger.debug("Shape of current weight at {} is {}".format(i+1, (f,f,nc_prev,nc)))
+	    	self.logger.debug("Shape of current bias at {} is {}".format(i+1, nc))
 
 
 
@@ -164,7 +169,7 @@ class CNN_Model(object):
 
 	#--------------------------------------------------------------------------------------------------------------------------------------
 	# Define max pool block
-	def maxpool2d_Block(X, f, padding='SAME'):
+	def maxpool2d_Block(self,X, f, padding='SAME'):
 
 	    max_pool = tf.nn.max_pool(X, [1,f,f,1], strides=[1,f,f,1], padding=padding)
 	    
@@ -174,31 +179,31 @@ class CNN_Model(object):
 	#--------------------------------------------------------------------------------------------------------------------------------------
 	# Forward activation
 
-	def forward_pass(X):
-	    
-	    for i in range(self.num_conv_layers):
-	    
-	    	current_W = "W" + str(i+1)
-	    	current_b = "b" + str(i+1)
+	def forward_pass(self, X):
 
-		    # Perform series of convolution operation
-		    A = conv2d_Block(X,  self.parameters[current_W], self.parameters[current_b], self.conv_strides, "SAME")
-		    A = maxpool2d_Block(A, self.max_pool_strides, "SAME")
-		    X = A
 
-	    # Flatten 
-	    P = tf.contrib.layers.flatten(A)
-	    
-	    for i in range(self.num_fc_layers):
-		    # Fully connected - 1
-		    F = tf.contrib.layers.fully_connected(P, self.units_fc_list[i])
-		    P = F
-	    
-	    
-	    # last layer
-	    Z = tf.contrib.layers.fully_connected(F, self.ny, activation_fn=None)
-	    
-	    return Z
+		for i in range(self.num_conv_layers):
+
+			current_W = "W" + str(i+1)
+			current_b = "b" + str(i+1)
+
+			# Perform series of convolution operation
+			A = self.conv2d_Block(X,  self.parameters[current_W], self.parameters[current_b], self.conv_strides, "SAME")
+			A = self.maxpool2d_Block(A, self.max_pool_strides, "SAME")
+			X = A
+
+		# Flatten 
+		P = tf.contrib.layers.flatten(A)
+
+		for i in range(self.num_fc_layers):
+			# Fully connected - 1
+			F = tf.contrib.layers.fully_connected(P, self.units_fc_list[i])
+			P = F
+
+		# last layer
+		Z = tf.contrib.layers.fully_connected(F, self.ny, activation_fn=None)
+
+		return Z
 	    
 	    
 	#--------------------------------------------------------------------------------------------------------------------------------------
@@ -206,7 +211,7 @@ class CNN_Model(object):
 
 	# Compute the cost
 
-	def compute_cost(logits, labels):
+	def compute_cost(self,logits, labels):
 
 	    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=labels))
 
@@ -216,7 +221,7 @@ class CNN_Model(object):
 
 
 	# Optimizer setup
-	def optimizer( cost):
+	def optimizer( self,cost):
 	    
 	    train = tf.train.AdamOptimizer(self.learning_rate).minimize(cost)
 	    
@@ -224,22 +229,25 @@ class CNN_Model(object):
 
 	#--------------------------------------------------------------------------------------------------------------------------------------
 
-	def get_mini_batches(X_train, y_train, batches):
+	def get_mini_batches(self, X, y , batches):
 
 	    mini_batches_input_list = []
 	    
-	    m = X_train.shape[0]
+	    m = X.shape[0]
 	    random_idx = np.random.permutation(m)
 
-	    X_train = X_train[random_idx]
-	    y_train = y_train[random_idx]
+	    X = X[random_idx]
+	    y = y[random_idx]
 
 	    for k in range(batches):
-	        mini_batches_input_list.append( (X_train[self.mini_batch_size * k : self.mini_batch_size * (k+1)], 
-	                                               y_train[self.mini_batch_size * k : self.mini_batch_size * (k+1)]))
-	    # Last chunk            
-	    mini_batches_input_list.append((X_train[batches * self.mini_batch_size : ], 
-	                                               y_train[batches * self.mini_batch_size : ]))
+	        mini_batches_input_list.append( (X[self.mini_batch_size * k : self.mini_batch_size * (k+1)], 
+	                                               y[self.mini_batch_size * k : self.mini_batch_size * (k+1)]))
+	    
+
+	    # Last chunk 
+	    if batches == int(np.floor(m / self.mini_batch_size)):       
+	    	mini_batches_input_list.append((X[batches * self.mini_batch_size : ], 
+	                                               y[batches * self.mini_batch_size : ]))
 
 	    return mini_batches_input_list
 
@@ -247,7 +255,7 @@ class CNN_Model(object):
 
 	# Create the model
 
-	def model(X_train, y_train, X_test, y_test):
+	def model(self, X_train, y_train, X_test, y_test):
 	    
 	     # to be able to rerun the model without overwriting tf variables
 	    ops.reset_default_graph()                        
@@ -255,20 +263,24 @@ class CNN_Model(object):
 	    # Extract information from the data
 	    self.m, self.nH, self.nW, self.nC = X_train.shape
 	    self.ny = y_train.shape[-1]
-	    m_test = X_test.shape[0]
+	    self.m_test = X_test.shape[0]
 	    overall_cost = []
-	    overall_accuracy = []
-	    overall_tf_accuracy = []
+	    overall_train_accuracy = []
+	    overall_test_accuracy = []
 
-	    batches = int(np.floor(self.m / self.mini_batch_size))
-	    print("Total number of batches: %d " % batches)
+	    train_batches = int(np.floor(self.m / self.mini_batch_size))
+	    self.logger.debug("Total number of train batches: %d " % train_batches)
 	    
+	    test_batches = 5 # int(np.floor(self.m_test / self.mini_batch_size))
+	    self.logger.debug("Total number of test batches: %d " % test_batches)	    
+
 	    # Initialize parameters
 	    self.initialize_parameters() 
 	    
-	    # Create placeholders for X and y
-	    X_ = tf.placeholder(shape=[None, self.nH, self.nW, self.nC], dtype=tf.float32)
-	    y_ = tf.placeholder(shape=[None, self.ny], dtype=tf.float32)
+	    # Create placeholders for X and y train
+	    X_ = tf.placeholder(shape=[None, self.nH, self.nW, self.nC], dtype=tf.float32, name="X")
+	    y_ = tf.placeholder(shape=[None, self.ny], dtype=tf.float32, name="y")
+
 	    
 	    # Call the forward pass
 	    Z = self.forward_pass(X_)
@@ -288,103 +300,77 @@ class CNN_Model(object):
 	    #tf_accuracy = tf.metrics.accuracy(labels=y_, predictions=Z)
 	            
 	    # Create a tensorflow session
-	    with tf.Session() as sess:
-	        sess.run(init)
-	        saver = tf.train.Saver()
-	             
-	        
-	        for i in range(self.num_epochs):
 
-	            start = time.time()
-	            print("Current epoch: %d"% i)
-	            
-	            batch_counter = 0 
-	            batch_cost = []
-	            batch_accuracy = []
-	            batch_tf_accuracy = []
-	            random_idx = np.random.permutation(m_test)
-	            
-	            mini_batches_input_list = self.get_mini_batches(X_train, y_train, batches)
-	            
-	            for mini_batch in mini_batches_input_list:
-	                
-	                mini_batch_X, mini_batch_y = mini_batch[0], mini_batch[1]                
-	                
-	                _, cur_cost = sess.run(train, feed_dict = {X_:mini_batch_X, y_:mini_batch_y}), sess.run(cost, feed_dict = {X_:mini_batch_X, y_:mini_batch_y})
-	                cur_accuracy = sess.run(accuracy, feed_dict = {X_:mini_batch_X, y_:mini_batch_y})
-	                #cur_tf_accuracy = sess.run(tf_accuracy, feed_dict = {X_:mini_batch_X, y_:mini_batch_y})
+	    self.session = tf.Session()
 
-	                
-	                batch_cost.append(cur_cost)
-	                batch_accuracy.append(cur_accuracy)
-	                #batch_tf_accuracy.append(cur_tf_accuracy)
-	                
-	                
-	                batch_counter += 1
-	                    
-	            
-	            overall_cost.append(np.mean(batch_cost))
-	            overall_accuracy.append(np.mean(batch_accuracy))
-	            #overall_tf_accuracy.append(np.mean(batch_tf_accuracy))
+	    self.session.run(init)
+	    saver = tf.train.Saver()
+             
+        
+	    for i in range(self.num_epochs):
 
-	            if i % 2 == 0:
-	                print("Cost at iteration %d is %f" % (i, overall_cost[-1]))
-	                print("Accuracy at iteration %d is %f" % (i, overall_accuracy[-1]))
-	                #print("Test Accuracy at iteration %d is %f" % (i, overall_tf_accuracy[-1]))
-	                print("Saving a checkpoint here.")
-	                saver.save(sess, os.getcwd() + "/fruit_train", global_step=i)
+		    start = time.time()
+		    self.logger.debug("Current epoch: %d"% i)
+		    
+		    batch_counter = 0 
+		    batch_cost = []
+		    batch_train_accuracy = []
+		    batch_test_accuracy = []
 
-	            print("Time taken for epoch %d: %f"% (i, time.time() - start))
+		    
+		    mini_batches_input_train_list = self.get_mini_batches(X_train, y_train, train_batches)
+		    mini_batches_input_test_list  = self.get_mini_batches(X_test, y_test, test_batches)
 
-	        
-	        print("Final Cost is %f" % overall_cost[-1])
-	        print("Final Accuracy is %f" % overall_accuracy[-1])
-	        saver.save(sess, os.getcwd() + "/fruit_train-final")
+		    
+		    for mini_batch in mini_batches_input_train_list:
+		        
+		        mini_batch_X, mini_batch_y = mini_batch[0], mini_batch[1]                
+		        
+		        _, cur_cost = self.session.run(train, feed_dict = {X_:mini_batch_X, y_:mini_batch_y}), self.session.run(cost, feed_dict = {X_:mini_batch_X, y_:mini_batch_y})
+		        cur_train_accuracy = self.session.run(accuracy, feed_dict = {X_:mini_batch_X, y_:mini_batch_y})
 
-	        np.save("cost_accuracy.npy", [overall_cost, overall_accuracy])
-	                
-	        
-	    
-	    return overall_cost, overall_accuracy,parameters
+		        cur_test_accuracy_mini_batch = []
+		        for mini_batch_test in mini_batches_input_test_list:
+		        
+		       		mini_batch_Xt, mini_batch_yt = mini_batch_test[0], mini_batch_test[1]
+		       		#self.logger.debug("Shape is %r and %r" % (mini_batch_Xt.shape, mini_batch_yt.shape))
+		       		#input()
+			        cur_test_accuracy = self.session.run(accuracy, feed_dict = {X_:mini_batch_Xt, y_:mini_batch_yt})
+			        cur_test_accuracy_mini_batch.append(cur_test_accuracy)
+
+
+		        
+		        batch_cost.append(cur_cost)
+		        batch_train_accuracy.append(cur_train_accuracy)  
+		        batch_test_accuracy.append(np.mean(cur_test_accuracy_mini_batch))
+		        
+		        batch_counter += 1
+		            
+		    
+		    overall_cost.append(np.mean(batch_cost))
+		    overall_train_accuracy.append(np.mean(batch_train_accuracy))
+		    overall_test_accuracy.append(np.mean(batch_test_accuracy))
+
+		    if i % 2 == 0:
+		        self.logger.debug("Cost at iteration %d is %f" % (i, overall_cost[-1]))
+		        self.logger.debug("Train Accuracy at iteration %d is %f" % (i, overall_train_accuracy[-1]))
+		        self.logger.debug("Test Accuracy at iteration %d is %f" % (i, overall_test_accuracy[-1]))
+		        self.logger.debug("Saving a checkpoint here.")
+		        saver.save(self.session, os.getcwd() + "/fruit_train", global_step=i)
+
+		    self.logger.debug("Time taken for epoch %d: %f"% (i, time.time() - start))
+
+
+	    self.logger.debug("Final Cost is %f" % overall_cost[-1])
+	    self.logger.debug("Final Train Accuracy is %f" % overall_train_accuracy[-1])
+	    self.logger.debug("Final Test Accuracy is %f" % overall_test_accuracy[-1])
+	    saver.save(self.session, os.getcwd() + "/fruit_train-final")
+
+
+	    np.save("cost_accuracy.npy", [overall_cost, overall_train_accuracy])
+		            
+
+	    return overall_cost, overall_train_accuracy, overall_test_accuracy, self.parameters
 
 
 	#--------------------------------------------------------------------------------------------------------------------------------------
-
-	def predict(self, data, labels):
-
-
-		print("Data shape: {}". format(data.shape))
-		print("Labels shape: {}". format(labels.shape))
-	    
-	    with tf.Session() as sess:
-	        
-	        X_ = tf.placeholder(shape=[None, self.nH, self.nW, self.nC], dtype=tf.float32)
-	        y_ = tf.placeholder(shape=[None, self.ny], dtype=tf.float32)
-
-	         #sess = tf.Session()
-	        init = tf.global_variables_initializer()
-	        sess.run(init)
-
- 			batches = int(np.floor(data.shape[0] / self.mini_batch_size))
-
-			overall_accuracy = []
-
-			Z = self.forward_pass(X_)
-
-	        correct_pred = tf.equal(tf.argmax(Z, 1), tf.argmax(y_, 1))
-	        
-	        accuracy = tf.reduce_mean(tf.cast(correct_pred, "float"))
-
-			mini_batches_input_list = self.get_mini_batches(data, labels, batches)
-
-			for mini_batch in mini_batches_input_list:	       
-
-	            mini_batch_X, mini_batch_y = mini_batch[0], mini_batch[1] 
-
-	            batch_accuracy = sess.run(accuracy, {X_: mini_batch_X, y_: mini_batch_y})	
-	              
-	            overall_accuracy.append(batch_accuracy)          
-	        
-        
-
-	    return np.mean(overall_accuracy)
