@@ -160,10 +160,10 @@ class CNN_Model(object):
 	# Define 1 convolution block 
 	def conv2d_Block(self, X, W, b, s, padding='SAME'):
 	    
-	    Z = tf.nn.conv2d(X, W, strides=[1,s,s,1], padding=padding)
-	    Z = tf.nn.bias_add(Z, b)
+	    Z = tf.nn.conv2d(X, W, strides=[1,s,s,1], padding=padding, name="conv2d")
+	    Z = tf.nn.bias_add(Z, b, name="bias")
 	    
-	    A = tf.nn.relu(Z)
+	    A = tf.nn.relu(Z, name="relu")
 	    
 	    return A
 
@@ -171,7 +171,7 @@ class CNN_Model(object):
 	# Define max pool block
 	def maxpool2d_Block(self,X, f, padding='SAME'):
 
-	    max_pool = tf.nn.max_pool(X, [1,f,f,1], strides=[1,f,f,1], padding=padding)
+	    max_pool = tf.nn.max_pool(X, [1,f,f,1], strides=[1,f,f,1], padding=padding, name="max_pool")
 	    
 	    return max_pool
 
@@ -213,7 +213,7 @@ class CNN_Model(object):
 
 	def compute_cost(self,logits, labels):
 
-	    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=labels))
+	    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=labels), name="cost")
 
 	    return cost
 
@@ -278,12 +278,14 @@ class CNN_Model(object):
 	    self.initialize_parameters() 
 	    
 	    # Create placeholders for X and y train
-	    X_ = tf.placeholder(shape=[None, self.nH, self.nW, self.nC], dtype=tf.float32, name="X")
-	    y_ = tf.placeholder(shape=[None, self.ny], dtype=tf.float32, name="y")
+	    X_ = tf.placeholder(shape=[None, self.nH, self.nW, self.nC], dtype=tf.float32, name="X_")
+	    y_ = tf.placeholder(shape=[None, self.ny], dtype=tf.float32, name="y_")
 
 	    
 	    # Call the forward pass
 	    Z = self.forward_pass(X_)
+
+	    FP = tf.convert_to_tensor(Z, name="FP")
 	    
 	    # Compute the cost
 	    cost = self.compute_cost(Z, y_)
@@ -292,10 +294,14 @@ class CNN_Model(object):
 	    train = self.optimizer(cost)
 	    
 	    init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer(), tf.tables_initializer())
+
+	    Z_out = tf.argmax(Z, 1, name="Z_out")
+
+	    Z_max = tf.reduce_max(Z, name="Z_max")
 	    
-	    correct_pred = tf.equal(tf.argmax(Z, 1), tf.argmax(y_, 1))
+	    correct_pred = tf.equal(Z_out , tf.argmax(y_, 1), name="correct_pred")
 	    
-	    accuracy = tf.reduce_mean(tf.cast(correct_pred, "float"))
+	    accuracy = tf.reduce_mean(tf.cast(correct_pred, "float"), name="accuracy")
 
 	    #tf_accuracy = tf.metrics.accuracy(labels=y_, predictions=Z)
 	            

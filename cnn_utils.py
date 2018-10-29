@@ -210,3 +210,25 @@ def convert_to_one_hot(labels, num_classes):
 	return np.eye(num_classes)[labels.reshape(-1)]
 
 
+# --------------------------------------------------------------------------------------------------------------------------    
+def get_mini_batches(X, y , batches, mini_batch_size):
+
+    mini_batches_input_list = []
+
+    m = X.shape[0]
+    random_idx = np.random.permutation(m)
+
+    X = X[random_idx]
+    y = y[random_idx]
+
+    for k in range(batches):
+        mini_batches_input_list.append( (X[mini_batch_size * k : mini_batch_size * (k+1)], 
+                                               y[mini_batch_size * k : mini_batch_size * (k+1)]))
+
+
+    # Last chunk 
+    if batches == int(np.floor(m / mini_batch_size)):       
+        mini_batches_input_list.append((X[batches * mini_batch_size : ], 
+                                               y[batches * mini_batch_size : ]))
+
+    return mini_batches_input_list

@@ -86,16 +86,10 @@ if __name__ == "__main__":
 
     if PREDICT_FLAG:
 
-        graph = load_frozen_model("sample_frozen_graph.pb")
+    	freeze_model()
+    	
+    	graph = load_frozen_model("sample_frozen_graph.pb")
 
+    	results = predict_label(test_data_norm, test_labels_one_hot, graph, model_obj.mini_batch_size)
 
-
-
-        '''
-        accuracy_train = model_obj.classify(training_data_norm, training_labels_one_hot)
-        logger.debug("Max, Min and Mean Accuracy for train dataset: {0:.3f}, {0:.3f}, {0:.3f}".format(accuracy_train[0],accuracy_train[1],accuracy_train[2]))
-
-        accuracy_test = model_obj.classify(test_data_norm, test_labels_one_hot)
-        logger.debug("Max, Min and Mean Accuracy for test dataset: {0:.3f}, {0:.3f}, {0:.3f}".format(accuracy_test[0],accuracy_test[1],accuracy_test[2]))
-
-        '''
+    	#print(np.mean(results), np.min(results), np.max(results))
