@@ -49,17 +49,18 @@ def create_directory(path):
     
 # --------------------------------------------------------------------------------------------------------------------------    
 
-def create_logger_instance():  
+def create_logger_instance(name):  
     '''
     Create an instance of logging at file and console level.
     '''
     
     # create logger with 'Training_Automation'
-    logger = logging.getLogger('Fruits Classification')
+    logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
     
     create_directory('logs')
-    logging_name = 'logs/fruits_classification_logs_' + get_current_date_string() +  '.log'
+    folder_name = "_".join(name.split(" ")).lower()
+    logging_name = 'logs/' + folder_name + '_logs_' + get_current_date_string() +  '.log'
                 
     # create file handler which logs debug messages 
     fh = logging.FileHandler(logging_name)

@@ -6,7 +6,9 @@ import time
 import cnn_utils as utils
 import argparse
 from model import CNN_Model
-from inference import *
+import inference as inf
+
+#--------------------------------------------------------------------------------------------------------------------------------------
 
 if __name__ == "__main__":
 
@@ -14,7 +16,7 @@ if __name__ == "__main__":
     parser.add_argument("--config", default= os.getcwd() + "/settings.cfg", help="Please enter the settings file")
     args = parser.parse_args()
 
-    logger = utils.create_logger_instance() 
+    logger = utils.create_logger_instance("Fruits Classifier Model") 
 
     model_obj = CNN_Model(args.config, logger)
     
@@ -48,8 +50,7 @@ if __name__ == "__main__":
 
 
 
-    # Display the dimensions of the data
-
+    # Print the dimensions of the data
     logger.debug("Shape of training data is {}".format(training_data.shape)) 
     logger.debug("Shape of training labels is {}".format(training_labels.shape)) 
 
@@ -62,34 +63,33 @@ if __name__ == "__main__":
     test_labels_one_hot = utils.convert_to_one_hot(test_labels, num_classes)
 
 
-
-    # In[104]:
-
     logger.debug("Shape of training labels one hot encoded is {}".format(training_labels_one_hot.shape)) 
     logger.debug("Shape of test labels one hot encoded is {}".format(test_labels_one_hot.shape)) 
 
 
-    # In[105]:
 
     # Normalize the input
-    training_data_norm = training_data#/255.0
-    test_data_norm = test_data#/255.0
+    training_data_norm = training_data
+    test_data_norm = test_data
 
     logger.debug("Shape of normalized training data is {}".format(training_data_norm.shape)) 
     logger.debug("Shape of normalized test data is {}".format(test_data_norm.shape)) 
 
 
-
     if TRAIN_FLAG:
+
         overall_cost, overall_train_accuracy, overall_test_accuracy, parameters = model_obj.model(training_data_norm, training_labels_one_hot, test_data_norm, test_labels_one_hot)
 
 
     if PREDICT_FLAG:
 
-    	freeze_model()
+    	#inf.freeze_model(models_dir)
     	
-    	graph = load_frozen_model("sample_frozen_graph.pb")
+    	graph = inf.load_frozen_model(models_dir + "/sample_frozen_graph.pb")
 
-    	results = predict_label(test_data_norm, test_labels_one_hot, graph, model_obj.mini_batch_size)
+    	inf.predict_label(training_data_norm, training_labels_one_hot, graph, model_obj.mini_batch_size)
+        #inf.predict_label(test_data_norm, test_labels_one_hot, graph, model_obj.mini_batch_size)
 
-    	#print(np.mean(results), np.min(results), np.max(results))
+
+
+#--------------------------------------------------------------------------------------------------------------------------------------

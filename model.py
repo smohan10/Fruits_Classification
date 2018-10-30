@@ -285,7 +285,7 @@ class CNN_Model(object):
 	    # Call the forward pass
 	    Z = self.forward_pass(X_)
 
-	    FP = tf.convert_to_tensor(Z, name="FP")
+	    #FP = tf.convert_to_tensor(Z, name="FP")
 	    
 	    # Compute the cost
 	    cost = self.compute_cost(Z, y_)
@@ -295,9 +295,15 @@ class CNN_Model(object):
 	    
 	    init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer(), tf.tables_initializer())
 
-	    Z_out = tf.argmax(Z, 1, name="Z_out")
+	    Z_out = tf.argmax(input=Z, axis=1, name="Z_out")
 
 	    Z_max = tf.reduce_max(Z, name="Z_max")
+
+	    Z_softmax = tf.nn.softmax(Z, name="Z_softmax")
+
+	    Z_softmax_max = tf.reduce_max(Z_softmax, name="Z_softmax_max")
+
+	    #correct_pred = tf.equal(tf.argmax(Z, 1) , tf.argmax(y_, 1), name="correct_pred")
 	    
 	    correct_pred = tf.equal(Z_out , tf.argmax(y_, 1), name="correct_pred")
 	    
@@ -310,7 +316,7 @@ class CNN_Model(object):
 	    self.session = tf.Session()
 
 	    self.session.run(init)
-	    saver = tf.train.Saver()
+	    saver = tf.train.Saver(save_relative_paths=True)
              
         
 	    for i in range(self.num_epochs):
@@ -362,7 +368,7 @@ class CNN_Model(object):
 		        self.logger.debug("Train Accuracy at iteration %d is %f" % (i, overall_train_accuracy[-1]))
 		        self.logger.debug("Test Accuracy at iteration %d is %f" % (i, overall_test_accuracy[-1]))
 		        self.logger.debug("Saving a checkpoint here.")
-		        saver.save(self.session, os.getcwd() + "/fruit_train", global_step=i)
+		        saver.save(self.session, self.save_models_dir + "/fruit_train", global_step=i)
 
 		    self.logger.debug("Time taken for epoch %d: %f"% (i, time.time() - start))
 
@@ -370,10 +376,10 @@ class CNN_Model(object):
 	    self.logger.debug("Final Cost is %f" % overall_cost[-1])
 	    self.logger.debug("Final Train Accuracy is %f" % overall_train_accuracy[-1])
 	    self.logger.debug("Final Test Accuracy is %f" % overall_test_accuracy[-1])
-	    saver.save(self.session, os.getcwd() + "/fruit_train-final")
+	    saver.save(self.session, self.save_models_dir + "/fruit_train-final")
 
 
-	    np.save("cost_accuracy.npy", [overall_cost, overall_train_accuracy])
+	    np.save(self.save_models_dir + "/cost_accuracy.npy", [overall_cost, overall_train_accuracy])
 		            
 
 	    return overall_cost, overall_train_accuracy, overall_test_accuracy, self.parameters
