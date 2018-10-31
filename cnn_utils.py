@@ -233,3 +233,41 @@ def get_mini_batches(X, y , batches, mini_batch_size):
                                                y[batches * mini_batch_size : ]))
 
     return mini_batches_input_list
+
+
+# --------------------------------------------------------------------------------------------------------------------------    
+
+def retrieve_image_file_list():
+
+
+    data_path = os.getcwd() + "/fruits-360/"
+    image_file_list = []
+    t = "Training"
+
+    for fruit in os.listdir(data_path + t):
+        for image in os.listdir(data_path + t + "/" + fruit + "/"):
+            image_file_list.append(data_path + t + "/" + fruit + "/" + image)
+
+    t = "Test"
+
+    for fruit in os.listdir(data_path + t):
+        for image in os.listdir(data_path + t + "/" + fruit + "/"):
+            image_file_list.append(data_path + t + "/" + fruit + "/" + image)
+
+    return image_file_list
+
+# --------------------------------------------------------------------------------------------------------------------------    
+
+def save_image_file_list_to_disk(data_path, image_file_list_save_file, image_file_list):
+
+    np.save(data_path + image_file_list_save_file , image_file_list)
+
+
+# --------------------------------------------------------------------------------------------------------------------------    
+
+
+def load_image_file_list_from_disk(data_path, image_file_list_load_file):
+
+    image_file_list = np.load(data_path + image_file_list_load_file)
+
+    return image_file_list

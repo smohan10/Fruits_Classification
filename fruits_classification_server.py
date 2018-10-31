@@ -8,9 +8,10 @@ import cnn_utils as utils
 from flask import Flask, jsonify, request 
 from PIL import Image 
 import logging
-
+from flask_cors import CORS
 
 app = Flask(__name__)
+cors = CORS(app)
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
@@ -51,8 +52,11 @@ def load_frozen_model(data_path, model_path, pb_name, dict_name, logger):
 def predict_image():
 
 	try:
+		
+		logger.debug("Got a request from: {}".format(request.remote_addr))
+
 		start = time.time()
-	
+
 		# convert string of image data into array of floats
 		nparr = np.fromstring(request.data, dtype=np.uint8)
 		
@@ -62,10 +66,10 @@ def predict_image():
 
 		pred_y, max_prob =  session.run([Z_out,Z_softmax_max], {X_: image})
 
-		end = time.time() - start
+		diff = time.time() - start
 
 		prediction = {'predicted_output_label':int(pred_y), 'probability':float(max_prob), \
-							'predicted_fruit': str(idx_to_label_dict_train[int(pred_y)]), 'time_taken_to_predict': end}
+							'predicted_fruit': str(idx_to_label_dict_train[int(pred_y)]), 'time_taken_to_predict': diff}
 
 
 		logger.debug("The prediction for above request: %r\n\n" % prediction)
@@ -95,7 +99,7 @@ if __name__ == "__main__":
 	session = tf.Session(graph=graph, config=sess_config)
 
 	
-	app.run()
+	app.run(host="10.1.10.33", port=int("8080"), debug=True, use_reloader=False)
 
 
 
