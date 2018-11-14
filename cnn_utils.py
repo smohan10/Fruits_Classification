@@ -271,3 +271,37 @@ def load_image_file_list_from_disk(data_path, image_file_list_load_file):
     image_file_list = np.load(data_path + image_file_list_load_file)
 
     return image_file_list
+
+
+
+#--------------------------------------------------------------------------------------------------------------------------------------
+
+def load_frozen_model(data_path, model_path, pb_name, dict_name, logger):
+
+	try:
+
+		with tf.gfile.GFile(model_path + pb_name, "rb") as f:
+			restored_graph_def = tf.GraphDef()
+			restored_graph_def.ParseFromString(f.read())
+
+		with tf.Graph().as_default() as graph:
+			tf.import_graph_def(restored_graph_def, input_map=None, return_elements= ["correct_pred", "accuracy", "Z_out", "Z_max"], name = "" )
+
+
+		#label_to_idx_dict_train = np.load(path + "label_id_dict_train.npy")
+		idx_to_label_dict_train = np.load(data_path + dict_name)
+		idx_to_label_dict_train = idx_to_label_dict_train[()]
+		#label_to_idx_dict_test =  np.load(path + "label_to_idx_dict_test.npy")
+		#idx_to_label_dict_test =  np.load(path + "idx_to_label_dict_test.npy")
+		#print(type(idx_to_label_dict_train),  type(idx_to_label_dict_train[()]))
+
+		logger.debug("Dict: %r" % idx_to_label_dict_train)
+
+
+
+	except Exception as e:
+		logger.error("[LOAD MODEL] Found an exception: %r" % e)
+		sys.exit(1)
+
+
+	return graph, idx_to_label_dict_train

@@ -136,22 +136,47 @@ class CNN_Model(object):
 
 
 	#--------------------------------------------------------------------------------------------------------------------------------------
+
+	def variable_summaries(self, var):
+
+		"""Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
+		with tf.name_scope('summaries'):
+			mean = tf.reduce_mean(var)
+			tf.summary.scalar('mean', mean)
+			with tf.name_scope('stddev'):
+				stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+			tf.summary.scalar('stddev', stddev)
+			tf.summary.scalar('max', tf.reduce_max(var))
+			tf.summary.scalar('min', tf.reduce_min(var))
+			tf.summary.histogram('histogram', var)
+
+
+	#--------------------------------------------------------------------------------------------------------------------------------------
 	def initialize_parameters(self):
     
 	    self.parameters = {}
 
-	    for i in range(self.num_conv_layers):
-	    	current_W = "W" + str(i+1)
-	    	current_b = "b" + str(i+1)
-	    	f = self.conv_filter_shape
-	    	s = self.conv_strides
-	    	nc_prev = 3 if i == 0 else self.output_channels_list[i-1]
-	    	nc = self.output_channels_list[i]
+	    with tf.name_scope('weights'):
+		    for i in range(self.num_conv_layers):
+		    	current_W = "W" + str(i+1)
+		    	f = self.conv_filter_shape
+		    	s = self.conv_strides
+		    	nc_prev = 3 if i == 0 else self.output_channels_list[i-1]
+		    	nc = self.output_channels_list[i]
 
-	    	self.parameters[current_W] = tf.get_variable(current_W, shape=(f,f,nc_prev,nc), initializer=tf.contrib.layers.xavier_initializer(seed=0))
-	    	self.parameters[current_b] = tf.get_variable(current_b, shape=[nc], initializer=tf.zeros_initializer())
-	    	self.logger.debug("Shape of current weight at {} is {}".format(i+1, (f,f,nc_prev,nc)))
-	    	self.logger.debug("Shape of current bias at {} is {}".format(i+1, nc))
+		    	self.parameters[current_W] = tf.get_variable(current_W, shape=(f,f,nc_prev,nc), initializer=tf.contrib.layers.xavier_initializer(seed=0))
+		    	self.logger.debug("Shape of current weight at {} is {}".format(i+1, (f,f,nc_prev,nc)))
+		    	self.variable_summaries(self.parameters[current_W])
+		    	
+	    with tf.name_scope('biases'):
+		    for i in range(self.num_conv_layers):
+		    	current_b = "b" + str(i+1)
+		    	nc = self.output_channels_list[i]
+
+		    	self.parameters[current_b] = tf.get_variable(current_b, shape=[nc], initializer=tf.zeros_initializer())
+		    	self.logger.debug("Shape of current bias at {} is {}".format(i+1, nc))
+		    	self.variable_summaries(self.parameters[current_b])
+
 
 
 
@@ -202,6 +227,7 @@ class CNN_Model(object):
 
 		# last layer
 		Z = tf.contrib.layers.fully_connected(F, self.ny, activation_fn=None)
+		tf.summary.histogram('activations', Z)
 
 		return Z
 	    
@@ -213,8 +239,10 @@ class CNN_Model(object):
 
 	def compute_cost(self,logits, labels):
 
-	    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=labels), name="cost")
+	    with tf.name_scope('cross_entropy'):
+	    	cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=labels), name="cost")
 
+	    tf.summary.scalar('cross_entropy', cost)
 	    return cost
 
 	#--------------------------------------------------------------------------------------------------------------------------------------
@@ -222,8 +250,9 @@ class CNN_Model(object):
 
 	# Optimizer setup
 	def optimizer( self,cost):
-	    
-	    train = tf.train.AdamOptimizer(self.learning_rate).minimize(cost)
+
+	    with tf.name_scope('train'):		    
+	    	train = tf.train.AdamOptimizer(self.learning_rate).minimize(cost)
 	    
 	    return train
 
@@ -304,19 +333,26 @@ class CNN_Model(object):
 	    Z_softmax_max = tf.reduce_max(Z_softmax, name="Z_softmax_max")
 
 	    #correct_pred = tf.equal(tf.argmax(Z, 1) , tf.argmax(y_, 1), name="correct_pred")
-	    
-	    correct_pred = tf.equal(Z_out , tf.argmax(y_, 1), name="correct_pred")
-	    
-	    accuracy = tf.reduce_mean(tf.cast(correct_pred, "float"), name="accuracy")
 
-	    #tf_accuracy = tf.metrics.accuracy(labels=y_, predictions=Z)
-	            
+
+	    with tf.name_scope("predictions"):
+	    	correct_pred = tf.equal(Z_out , tf.argmax(y_, 1), name="correct_pred")
+	    
+	    with tf.name_scope("accuracy"):
+	    	accuracy = tf.reduce_mean(tf.cast(correct_pred, "float"), name="accuracy")
+
+	    tf.summary.scalar('accuracy', accuracy)        
 	    # Create a tensorflow session
 
 	    self.session = tf.Session()
 
 	    self.session.run(init)
 	    saver = tf.train.Saver(save_relative_paths=True)
+
+	    merged = tf.summary.merge_all()
+	    train_writer = tf.summary.FileWriter(os.getcwd() + "/summaries/train", self.session.graph)
+
+	    test_writer = tf.summary.FileWriter(os.getcwd() + "/summaries/test", self.session.graph)
              
         
 	    for i in range(self.num_epochs):
@@ -338,8 +374,10 @@ class CNN_Model(object):
 		        
 		        mini_batch_X, mini_batch_y = mini_batch[0], mini_batch[1]                
 		        
-		        _, cur_cost = self.session.run(train, feed_dict = {X_:mini_batch_X, y_:mini_batch_y}), self.session.run(cost, feed_dict = {X_:mini_batch_X, y_:mini_batch_y})
+		        train_summary, _, cur_cost = self.session.run([merged,train,cost], feed_dict = {X_:mini_batch_X, y_:mini_batch_y})
 		        cur_train_accuracy = self.session.run(accuracy, feed_dict = {X_:mini_batch_X, y_:mini_batch_y})
+		        train_writer.add_summary(train_summary, i)
+		        
 
 		        cur_test_accuracy_mini_batch = []
 		        for mini_batch_test in mini_batches_input_test_list:
@@ -347,10 +385,11 @@ class CNN_Model(object):
 		       		mini_batch_Xt, mini_batch_yt = mini_batch_test[0], mini_batch_test[1]
 		       		#self.logger.debug("Shape is %r and %r" % (mini_batch_Xt.shape, mini_batch_yt.shape))
 		       		#input()
-			        cur_test_accuracy = self.session.run(accuracy, feed_dict = {X_:mini_batch_Xt, y_:mini_batch_yt})
+			        test_summary, cur_test_accuracy = self.session.run([merged,accuracy], feed_dict = {X_:mini_batch_Xt, y_:mini_batch_yt})
+			        test_writer.add_summary(test_summary, i)
 			        cur_test_accuracy_mini_batch.append(cur_test_accuracy)
 
-
+			    
 		        
 		        batch_cost.append(cur_cost)
 		        batch_train_accuracy.append(cur_train_accuracy)  
@@ -358,7 +397,8 @@ class CNN_Model(object):
 		        
 		        batch_counter += 1
 		            
-		    
+		    #train_writer.add_summary(train_summary, i)
+		    #test_writer.add_summary(test_summary, i)
 		    overall_cost.append(np.mean(batch_cost))
 		    overall_train_accuracy.append(np.mean(batch_train_accuracy))
 		    overall_test_accuracy.append(np.mean(batch_test_accuracy))

@@ -13,38 +13,7 @@ from flask_cors import CORS
 app = Flask(__name__)
 cors = CORS(app)
 
-#--------------------------------------------------------------------------------------------------------------------------------------
 
-def load_frozen_model(data_path, model_path, pb_name, dict_name, logger):
-
-	try:
-
-		with tf.gfile.GFile(model_path + pb_name, "rb") as f:
-			restored_graph_def = tf.GraphDef()
-			restored_graph_def.ParseFromString(f.read())
-
-		with tf.Graph().as_default() as graph:
-			tf.import_graph_def(restored_graph_def, input_map=None, return_elements= ["correct_pred", "accuracy", "Z_out", "Z_max"], name = "" )
-
-
-		#label_to_idx_dict_train = np.load(path + "label_id_dict_train.npy")
-		idx_to_label_dict_train = np.load(data_path + dict_name)
-		idx_to_label_dict_train = idx_to_label_dict_train[()]
-		#label_to_idx_dict_test =  np.load(path + "label_to_idx_dict_test.npy")
-		#idx_to_label_dict_test =  np.load(path + "idx_to_label_dict_test.npy")
-		#print(type(idx_to_label_dict_train),  type(idx_to_label_dict_train[()]))
-
-		print(idx_to_label_dict_train)
-		logger.debug("Dict: %r" % idx_to_label_dict_train)
-
-
-
-	except Exception as e:
-		logger.error("[LOAD MODEL] Found an exception: %r" % e)
-		sys.exit(1)
-
-
-	return graph, idx_to_label_dict_train
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
@@ -84,10 +53,17 @@ def predict_image():
 #--------------------------------------------------------------------------------------------------------------------------------------
 
 if __name__ == "__main__":
+
+
+	parser = argparse.ArgumentParser(description="Fruits Classifier Server")
+	parser.add_argument("--config", default= os.getcwd() + "/server_settings.cfg", help="Please enter the settings file")
+	args = parser.parse_args()
+
+	config = json.load(args.config)
 	
 	logger = utils.create_logger_instance('Fruits Classification Server')
 
-	graph, idx_to_label_dict_train = load_frozen_model(os.getcwd() + "/data/" , os.getcwd() + "/models/" , "sample_frozen_graph.pb",  "idx_to_label_dict_train.npy", logger)
+	graph, idx_to_label_dict_train = utils.load_frozen_model(config, logger)
 
 	Z_out = graph.get_tensor_by_name("Z_out:0")		
 	Z_softmax_max = graph.get_tensor_by_name("Z_softmax_max:0")

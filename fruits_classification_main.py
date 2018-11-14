@@ -83,12 +83,12 @@ if __name__ == "__main__":
 
     if PREDICT_FLAG:
 
-    	#inf.freeze_model(models_dir)
-    	
-    	graph = inf.load_frozen_model(models_dir + "/sample_frozen_graph.pb")
+        #inf.freeze_model(models_dir)
 
-    	inf.predict_label(training_data_norm, training_labels_one_hot, graph, model_obj.mini_batch_size)
-        #inf.predict_label(test_data_norm, test_labels_one_hot, graph, model_obj.mini_batch_size)
+        graph = inf.load_frozen_model(models_dir + "/sample_frozen_graph.pb")
+
+        #inf.predict_label(training_data_norm, training_labels_one_hot, graph, model_obj.mini_batch_size)
+        inf.predict_label(test_data_norm, test_labels_one_hot, graph, model_obj.mini_batch_size)
 
 
 
